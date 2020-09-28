@@ -1,0 +1,64 @@
+AI as King 
+Functions:
+	find available moves
+	evaluate value of available moves for best attack move
+	find opponents' available moves
+	find threats to king
+	evaluate value of available defensive move
+	move to protect the king
+	compare best defensive move to best attack for best overall move
+	sort moves arrays by value of gain/benefit
+	minimax/alpha-beta pruning
+		chance piece will be captured/attacked
+		highest benefit
+		array to calculate the highest benefit of each move
+	AI MOVE:
+		If vulnerable:
+			find best move
+		If attack:
+			find highest benefit of all moves
+			check for vulnerable pieces that result from moves
+		Create a test move function to set piece at highest locations to confirm benefit values
+		Finalize/complete move
+			select piece to move
+			current position
+			new position
+
+Board
+	Piece Class
+		Black and White pieces
+		pieces of each type
+		starting locations/set up board
+		assigned value of the piece
+		two arrays of available moves: ones with opponents, one with empty squares
+
+Pawn
+
+Rook
+
+Knight
+
+Bishop
+
+Queen
+
+GUI
+
+Attack function
+	evaluates moves using attacker piece  type, opponent piece type, successfulness of attack
+
+Program Controls
+	Start game
+	Restart game/reset board
+	Notifications of checkmate/captures/etc?
+	Do we need a running report of captured pieces?
+	
+
+	
+
+
+		
+
+
+
+
