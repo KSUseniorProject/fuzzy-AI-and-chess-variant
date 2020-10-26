@@ -1,6 +1,7 @@
 import chess
 import chess.svg
 import random
+import np
 from time import sleep
 from tkinter import *
 from svglib.svglib import svg2rlg
