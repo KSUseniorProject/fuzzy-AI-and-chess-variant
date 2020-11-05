@@ -1,16 +1,20 @@
-#!/usr/bin/env pypy
-# -*- coding: utf-8 -*-
+#Sunfish is a simple, but strong chess engine written in Python
+#Sunfish is self contained in a py file, so it was added to the project rather than
+#create a separate virtual environment with PyPy to use it
+
+
 
 from __future__ import print_function
 import re, sys, time
 from itertools import count
 from collections import namedtuple
+from multipledispatch import dispatch
 
 ###############################################################################
 # Piece-Square tables. Tune these to change sunfish's behaviour
 ###############################################################################
 
-piece = { 'P': 100, 'N': 280, 'B': 320, 'R': 479, 'Q': 929, 'K': 60000 }
+piece = { 'P': 100, 'N': 280, 'B': 10000, 'R': 479, 'Q': 929, 'K': 60000 }
 pst = {
     'P': (   0,   0,   0,   0,   0,   0,   0,   0,
             78,  83,  86,  73, 102,  82,  85,  90,
@@ -61,6 +65,10 @@ pst = {
             -4,   3, -14, -50, -57, -18,  13,   4,
             17,  30,  -3, -14,   6,  -1,  40,  18),
 }
+
+capture_table = [[4, 4, 4, 4, 5, 1], [4, 4, 4, 4, 5, 2], [6, 6, 4, 4, 5, 2],
+                 [5, 5, 5, 4, 5, 3], [4, 4, 5, 5, 6, 5], [6, 6, 6, 5, 6, 4]]
+
 # Pad tables and join piece and pst dictionaries
 for k, table in pst.items():
     padrow = lambda row: (0,) + tuple(x+piece[k] for x in row) + (0,)
@@ -90,14 +98,14 @@ initial = (
 )
 
 # Lists of possible moves for each piece type.
-N, E, S, W = -10, 1, 10, -1
+N, E, S, W, NE, NW, SE, SW = -10, 1, 10, -1, -9, -11, 11, 9 #finish combination math variables
 directions = {
-    'P': (N, N+N, N+W, N+E),
-    'N': (N+N+E, E+N+E, E+S+E, S+S+E, S+S+W, W+S+W, W+N+W, N+N+W),
-    'B': (N+E, S+E, S+W, N+W),
-    'R': (N, E, S, W),
-    'Q': (N, E, S, W, N+E, S+E, S+W, N+W),
-    'K': (N, E, S, W, N+E, S+E, S+W, N+W)
+    'P': (N, NW, NE),
+    'N': (N, E, NE, S, SW, SE, W, NW),
+    'B': (N, NW, NE),
+    'R': (N, E, NE, S, SW, SE, W, NW),
+    'Q': (N, E, NE, S, SW, SE, W, NW),
+    'K': (N, E, NE, S, SW, SE, W, NW) #do combinations of N,S,E,W; only need to show up once in dict key
 }
 
 # Mate value must be greater than 8*queen + 2*(rook+knight+bishop)
@@ -121,7 +129,7 @@ DRAW_TEST = True
 # Chess logic
 ###############################################################################
 
-class Position(namedtuple('Position', 'board score wc bc ep kp')):
+class Position(namedtuple('Position', 'board score')):
     """ A state of a chess game
     board -- a 120 char representation of the board
     score -- the board evaluation
@@ -130,77 +138,413 @@ class Position(namedtuple('Position', 'board score wc bc ep kp')):
     ep - the en passant square
     kp - the king passant square
     """
+    def gen_royal_moves(self):
+        for i, p in enumerate(self.board):
+            if not p.isupper() or not p == "N" or not p == "K" or not p == "Q": continue
+            if p == "N":
+                for i in range(0, 4):
+                    for d in directions[p]:
+                        for j in count(i + d, d):
+                            num = 0
+                            q = self.board[j]
+                            # Stay inside the board, and off friendly pieces
+                            if q.isspace() or q.isupper():
+                                break
+                            # Rook capture
 
-    def gen_moves(self):
+                            # Move it
+                            yield i, j
+                            num += 1
+                            # Stop crawlers from sliding, and sliding after captures
+                            if p in 'PBR' or q.islower():
+                                break
+
+    def gen_peasant_moves(self):
         # For each of our pieces, iterate through each possible 'ray' of moves,
         # as defined in the 'directions' map. The rays are broken e.g. by
         # captures or immediately in case of pieces such as knights.
+
         for i, p in enumerate(self.board):
             if not p.isupper(): continue
-            for d in directions[p]:
-                for j in count(i+d, d):
-                    q = self.board[j]
-                    # Stay inside the board, and off friendly pieces
-                    if q.isspace() or q.isupper(): break
-                    # Pawn move, double move and capture
-                    if p == 'P' and d in (N, N+N) and q != '.': break
-                    if p == 'P' and d == N+N and (i < A1+N or self.board[i+N] != '.'): break
-                    if p == 'P' and d in (N+W, N+E) and q == '.' \
-                            and j not in (self.ep, self.kp, self.kp-1, self.kp+1): break
-                    # Move it
-                    yield (i, j)
-                    # Stop crawlers from sliding, and sliding after captures
-                    if p in 'PNK' or q.islower(): break
-                    # Castling, by sliding the rook next to the king
-                    if i == A1 and self.board[j+E] == 'K' and self.wc[0]: yield (j+E, j+W)
-                    if i == H1 and self.board[j+W] == 'K' and self.wc[1]: yield (j+W, j+E)
+            if p == "N":
+                for k in range(0, 4):
+                    for d in directions[p]:
+                        for j in count(i + d, d):
+                            num = 0
+                            q = self.board[j]
+                            # Stay inside the board, and off friendly pieces
+                            if q.isspace() or q.isupper():
+                                break
+                            # Rook capture
 
+                            # Move it
+                            yield i, j
+                            num += 1
+                            # Stop crawlers from sliding, and sliding after captures
+                            if p in 'PBR' or q.islower():
+                                break
+
+            if p == "K" or p == "Q":
+                for k in range(0, 2):
+                    for d in directions[p]:
+                        for j in count(i + d, d):
+                            num = 0
+                            q = self.board[j]
+                            # Stay inside the board, and off friendly pieces
+                            if q.isspace() or q.isupper():
+                                break
+                            # Rook capture
+
+                            # Move it
+                            yield i, j
+                            num += 1
+                            # Stop crawlers from sliding, and sliding after captures
+                            if p in 'PBR' or q.islower():
+                                break
+
+            if not (p == "N" or p == "K" or p == "Q"):
+                for d in directions[p]:
+                    for j in count(i+d, d):
+                        num = 0
+                        q = self.board[j]
+                        # Stay inside the board, and off friendly pieces
+                        if q.isspace() or q.isupper():
+                            break
+                        # Rook capture
+
+
+                        # Move it
+                        yield i, j
+                        num += 1
+                        # Stop crawlers from sliding, and sliding after captures
+                        if p in 'PBR' or q.islower() or (num == 3 and p in 'KQ') or (num == 5 and p in 'N'):
+                            break
+                    '''
+                    if p in 'KQ':   #checks to see if moving king or queen, pieces that can move more than once in a turn
+                        move = input('Your move: ')
+                        for move in range(0,2): #iterates up to three times, allows for moving up the three spaces with piece
+                            print('Move #{}'.format(move+1))
+                            move_again = input('Do you want to move again?(y/n): ') #gives player the option to move again if able to or prematurely end their turn
+                            if move_again == 'y':
+                                move = input('Your move: ')
+                            else:
+                                break
+                    '''
     def rotate(self):
         ''' Rotates the board, preserving enpassant '''
         return Position(
-            self.board[::-1].swapcase(), -self.score, self.bc, self.wc,
-            119-self.ep if self.ep else 0,
-            119-self.kp if self.kp else 0)
+            self.board[::-1].swapcase(), -self.score)
 
     def nullmove(self):
         ''' Like rotate, but clears ep and kp '''
         return Position(
-            self.board[::-1].swapcase(), -self.score,
-            self.bc, self.wc, 0, 0)
+            self.board[::-1].swapcase(), -self.score)
 
-    def move(self, move):
+    @dispatch()
+    def move(self):
+        board = self.board
+        score = self.score
+        return Position(board, score).rotate()
+
+    @dispatch(tuple, int)
+    def move(self, move, count):
         i, j = move
         p, q = self.board[i], self.board[j]
+        pieces = str(piece)
         put = lambda board, i, p: board[:i] + p + board[i+1:]
         # Copy variables and reset ep and kp
         board = self.board
-        wc, bc, ep, kp = self.wc, self.bc, 0, 0
         score = self.score + self.value(move)
-        # Actual move
+        '''
+        # attempt for iterations of king and queen movement
+        if pieces in 'KQ':  # checks to see if moving king or queen, pieces that can move more than once in a turn
+            # move = input('Your move: ')
+            for move in range(0, 2):  # iterates up to three times, allows for moving up the three spaces with piece
+                print('Move #{}'.format(move + 1))
+                move_again = input(
+                    'Do you want to move again?(y/n): ')  # gives player the option to move again if able to or prematurely end their turn
+                if move_again == 'y':
+                    move = input('Your move: ')
+                else:
+                    break
+        '''
         board = put(board, j, board[i])
         board = put(board, i, '.')
+        # Actual move
+        if pieces in 'KQ':
+            if count < 2:
+                print("Move #{}".format(move+1))
+                count += 1
+                move_again = input("Do you want to move again?(y/n): ")
+                if move_again == 'y':
+                    move(self, move, count)
+                else:
+                    count = 2
+
         # Castling rights, we move the rook or capture the opponent's
-        if i == A1: wc = (False, wc[1])
-        if i == H1: wc = (wc[0], False)
-        if j == A8: bc = (bc[0], False)
-        if j == H8: bc = (False, bc[1])
-        # Castling
-        if p == 'K':
-            wc = (False, False)
-            if abs(j-i) == 2:
-                kp = (i+j)//2
-                board = put(board, A1 if j < i else H1, '.')
-                board = put(board, kp, 'R')
-        # Pawn promotion, double move and en passant capture
-        if p == 'P':
-            if A8 <= j <= H8:
-                board = put(board, j, 'Q')
-            if j - i == 2*N:
-                ep = i + N
-            if j == self.ep:
-                board = put(board, j+S, '.')
+
         # We rotate the returned position, so it's ready for the next player
-        return Position(board, score, wc, bc, ep, kp).rotate()
+        return Position(board, score).rotate()
+
+    def find_attacker(self, current_piece, position):
+        board = self.board
+        score = self.score
+        chance1 = 7
+        chance2 = 7
+        chance3 = 7
+        three_highest_attackers = ""
+        opponent_view = Position(board, score).rotate()
+        for i, j in opponent_view.gen_peasant_moves():
+            match2 = re.match('([a-h])''([1-8])', i)
+            if j == position:
+                if board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)] == "K":
+                    if current_piece == "K":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "K"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "K"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "K"
+                    if current_piece == "Q":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "K"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "K"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "K"
+                    if current_piece == "N":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "K"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "K"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "K"
+                    if current_piece == "B":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "K"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "K"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "K"
+                    if current_piece == "R":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "K"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "K"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "K"
+                    if current_piece == "P":
+                        if chance1 >= 1:
+                            chance1 = 1
+                            three_highest_attackers[0] = "K"
+                        if chance2 > 1 and chance2 >= chance1:
+                            chance2 = 1
+                            three_highest_attackers[1] = "K"
+                        if chance3 > 1 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 1
+                            three_highest_attackers[2] = "K"
+
+                if board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)] == "Q":
+                    if current_piece == "K":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "Q"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "Q"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "Q"
+                    if current_piece == "Q":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "Q"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "Q"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "Q"
+                    if current_piece == "N":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "Q"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "Q"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "Q"
+                    if current_piece == "B":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "Q"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "Q"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "Q"
+                    if current_piece == "R":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "Q"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "Q"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "Q"
+                    if current_piece == "P":
+                        if chance1 >= 2:
+                            chance1 = 2
+                            three_highest_attackers[0] = "Q"
+                        if chance2 > 2 and chance2 >= chance1:
+                            chance2 = 2
+                            three_highest_attackers[1] = "Q"
+                        if chance3 > 2 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 2
+                            three_highest_attackers[2] = "Q"
+
+                if board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)] == "B":
+                    if current_piece == "K":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "B"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "B"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "B"
+                    if current_piece == "Q":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "B"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "B"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "B"
+                    if current_piece == "N":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "B"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "B"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "B"
+                    if current_piece == "B":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "B"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "B"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "B"
+                    if current_piece == "R":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "B"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "B"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "B"
+                    if current_piece == "P":
+                        if chance1 >= 3:
+                            chance1 = 3
+                            three_highest_attackers[0] = "B"
+                        if chance2 > 3 and chance2 >= chance1:
+                            chance2 = 3
+                            three_highest_attackers[1] = "B"
+                        if chance3 > 3 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 3
+                            three_highest_attackers[2] = "B"
+
+                if board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)] == "P":
+                    if current_piece == "K":
+                        if chance1 >= 6:
+                            chance1 = 6
+                            three_highest_attackers[0] = "P"
+                        if chance2 > 6 and chance2 >= chance1:
+                            chance2 = 6
+                            three_highest_attackers[1] = "P"
+                        if chance3 > 6 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 6
+                            three_highest_attackers[2] = "P"
+                    if current_piece == "Q":
+                        if chance1 >= 6:
+                            chance1 = 6
+                            three_highest_attackers[0] = "P"
+                        if chance2 > 6 and chance2 >= chance1:
+                            chance2 = 6
+                            three_highest_attackers[1] = "P"
+                        if chance3 > 6 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 6
+                            three_highest_attackers[2] = "P"
+                    if current_piece == "N":
+                        if chance1 >= 6:
+                            chance1 = 6
+                            three_highest_attackers[0] = "P"
+                        if chance2 > 6 and chance2 >= chance1:
+                            chance2 = 6
+                            three_highest_attackers[1] = "P"
+                        if chance3 > 6 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 6
+                            three_highest_attackers[2] = "P"
+                    if current_piece == "B":
+                        if chance1 >= 5:
+                            chance1 = 5
+                            three_highest_attackers[0] = "P"
+                        if chance2 > 5 and chance2 >= chance1:
+                            chance2 = 5
+                            three_highest_attackers[1] = "P"
+                        if chance3 > 5 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 5
+                            three_highest_attackers[2] = "P"
+                    if current_piece == "R":
+                        if chance1 >= 6:
+                            chance1 = 6
+                            three_highest_attackers[0] = "P"
+                        if chance2 > 6 and chance2 >= chance1:
+                            chance2 = 6
+                            three_highest_attackers[1] = "P"
+                        if chance3 > 6 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 6
+                            three_highest_attackers[2] = "P"
+                    if current_piece == "P":
+                        if chance1 >= 4:
+                            chance1 = 4
+                            three_highest_attackers[0] = "P"
+                        if chance2 > 4 and chance2 >= chance1:
+                            chance2 = 4
+                            three_highest_attackers[1] = "P"
+                        if chance3 > 4 and chance3 >= chance1 and chance3 >= chance2:
+                            chance3 = 4
+                            three_highest_attackers[2] = "P"
+        return three_highest_attackers, chance1, chance2, chance3
 
     def value(self, move):
         i, j = move
@@ -210,27 +554,23 @@ class Position(namedtuple('Position', 'board score wc bc ep kp')):
         # Capture
         if q.islower():
             score += pst[q.upper()][119-j]
-        # Castling check detection
-        if abs(j-self.kp) < 2:
-            score += pst['K'][119-j]
-        # Castling
-        if p == 'K' and abs(i-j) == 2:
-            score += pst['R'][(i+j)//2]
-            score -= pst['R'][A1 if j < i else H1]
+
         # Special pawn stuff
-        if p == 'P':
+        '''if p == 'P':
             if A8 <= j <= H8:
                 score += pst['Q'][j] - pst['P'][j]
             if j == self.ep:
-                score += pst['P'][119-(j+S)]
+                score += pst['P'][119-(j+S)]'''
         return score
 
 ###############################################################################
 # Search logic
 ###############################################################################
 
+
 # lower <= s(pos) <= upper
 Entry = namedtuple('Entry', 'lower upper')
+
 
 class Searcher:
     def __init__(self):
@@ -283,6 +623,7 @@ class Searcher:
         # Generator of moves to search in order.
         # This allows us to define the moves, but only calculate them if needed.
         def moves():
+            count = 0
             # First try not moving at all. We only do this if there is at least one major
             # piece left on the board, since otherwise zugzwangs are too dangerous.
             if depth > 0 and not root and any(c in pos.board for c in 'RBNQ'):
@@ -297,15 +638,16 @@ class Searcher:
             # will be non deterministic.
             killer = self.tp_move.get(pos)
             if killer and (depth > 0 or pos.value(killer) >= QS_LIMIT):
-                yield killer, -self.bound(pos.move(killer), 1-gamma, depth-1, root=False)
+                yield killer, -self.bound(pos.move(killer, count), 1 - gamma, depth - 1, root=False)
             # Then all the other moves
-            for move in sorted(pos.gen_moves(), key=pos.value, reverse=True):
+            for move in sorted(pos.gen_peasant_moves(), key=pos.value, reverse=True):
             #for val, move in sorted(((pos.value(move), move) for move in pos.gen_moves()), reverse=True):
                 # If depth == 0 we only try moves with high intrinsic score (captures and
                 # promotions). Otherwise we do all moves.
                 if depth > 0 or pos.value(move) >= QS_LIMIT:
-                    yield move, -self.bound(pos.move(move), 1-gamma, depth-1, root=False)
+                    yield move, -self.bound(pos.move(move, count), 1 - gamma, depth - 1, root=False)
 
+        count = 0
         # Run through the moves, shortcutting when possible
         best = -MATE_UPPER
         for move, score in moves():
@@ -327,9 +669,9 @@ class Searcher:
         # This doesn't prevent sunfish from making a move that results in stalemate,
         # but only if depth == 1, so that's probably fair enough.
         # (Btw, at depth 1 we can also mate without realizing.)
-        if best < gamma and best < 0 and depth > 0:
-            is_dead = lambda pos: any(pos.value(m) >= MATE_LOWER for m in pos.gen_moves())
-            if all(is_dead(pos.move(m)) for m in pos.gen_moves()):
+        if best < gamma and best < 0 < depth:
+            is_dead = lambda pos: any(pos.value(m) >= MATE_LOWER for m in pos.gen_peasant_moves())
+            if all(is_dead(pos.move(m, count)) for m in pos.gen_peasant_moves()):
                 in_check = is_dead(pos.nullmove())
                 best = -MATE_UPPER if in_check else 0
 
@@ -378,10 +720,6 @@ class Searcher:
 # User interface
 ###############################################################################
 
-# Python 2 compatability
-if sys.version_info[0] == 2:
-    input = raw_input
-
 
 def parse(c):
     fil, rank = ord(c[0]) - ord('a'), int(c[1]) - 1
@@ -395,33 +733,63 @@ def render(i):
 
 def print_pos(pos):
     print()
-    uni_pieces = {'R':'♜', 'N':'♞', 'B':'♝', 'Q':'♛', 'K':'♚', 'P':'♟',
-                  'r':'♖', 'n':'♘', 'b':'♗', 'q':'♕', 'k':'♔', 'p':'♙', '.':'·'}
+    uni_pieces = {'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟',
+                  'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔', 'p': '♙', '.': '·'}
     for i, row in enumerate(pos.board.split()):
         print(' ', 8-i, ' '.join(uni_pieces.get(p, p) for p in row))
     print('    a b c d e f g h \n\n')
 
 
 def main():
-    hist = [Position(initial, 0, (True,True), (True,True), 0, 0)]
+    hist = [Position(initial, 0)]
     searcher = Searcher()
+    count = 0
     while True:
         print_pos(hist[-1])
 
-        if hist[-1].score <= -MATE_LOWER:
+        is_continue = True
+        play = input("Do you want to move this turn y/n ")
+        if play == "y":
+            is_continue = True
+        if play == "n":
+            is_continue = False
+        '''if hist[-1].score <= -MATE_LOWER:
             print("You lost")
             break
-
+        '''
         # We query the user until she enters a (pseudo) legal move.
         move = None
-        while move not in hist[-1].gen_moves():
-            match = re.match('([a-h][1-8])'*2, input('Your move: '))
-            if match:
-                move = parse(match.group(1)), parse(match.group(2))
-            else:
-                # Inform the user when invalid input (e.g. "help") is entered
-                print("Please enter a move like g8f6")
-        hist.append(hist[-1].move(move))
+
+        different_count = 0
+
+        while is_continue and different_count <= 2:
+            while move not in hist[-1].gen_peasant_moves():
+                match = re.match('([a-h][1-8])'*2, input('Your move: '))
+                match2 = re.match('([a-h])''([1-8])', match.group(1))
+                print((109-((ord(match2.group(2))-48)*10)))
+                print((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower())
+                if ((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'q' or
+                        (hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'k'
+                        or (hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower()
+                        == 'n'):
+                    different_count += 1
+                    if match:
+                        move = parse(match.group(1)), parse(match.group(2))
+                    else:
+                        # Inform the user when invalid input (e.g. "help") is entered
+                        print("Please enter a move like g8f6")
+                else:
+                    different_count = 3
+                    if match:
+                        move = parse(match.group(1)), parse(match.group(2))
+                    else:
+                        # Inform the user when invalid input (e.g. "help") is entered
+                        print("Please enter a move like g8f6")
+        if is_continue:
+            hist.append(hist[-1].move(move, count)) #possible need to back line up one tab
+        else:
+            hist.append(hist[-1].move())
+
 
         # After our move we rotate the board and print it again.
         # This allows us to see the effect of our move.
@@ -440,10 +808,12 @@ def main():
         if score == MATE_UPPER:
             print("Checkmate!")
 
+        count = 0
         # The black player moves from a rotated position, so we have to
         # 'back rotate' the move before printing it.
         print("My move:", render(119-move[0]) + render(119-move[1]))
-        hist.append(hist[-1].move(move))
+        hist.append(hist[-1].move(move, count))
+        hist[-1].board
 
 
 if __name__ == '__main__':
