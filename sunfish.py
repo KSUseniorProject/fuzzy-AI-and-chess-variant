@@ -14,9 +14,9 @@ from multipledispatch import dispatch
 # Piece-Square tables. Tune these to change sunfish's behaviour
 ###############################################################################
 
-piece = { 'P': 100, 'N': 280, 'B': 10000, 'R': 479, 'Q': 929, 'K': 60000 }
+piece = { 'P': 100, 'L' : 100, 'D' : 100, 'N': 280, 'C': 280, 'B': 10000, 'F': 10000 ,'R': 479, 'Q': 929, 'K': 60000 }
 pst = {
-    'P': (   0,   0,   0,   0,   0,   0,   0,   0,
+    'P': ( 0,   0,   0,   0,   0,   0,   0,   0,
             78,  83,  86,  73, 102,  82,  85,  90,
              7,  29,  21,  44,  40,  31,  44,   7,
            -17,  16,  -2,  15,  14,   0,  15, -13,
@@ -24,6 +24,22 @@ pst = {
            -22,   9,   5, -11, -10,  -2,   3, -19,
            -31,   8,  -7, -37, -36, -14,   3, -31,
              0,   0,   0,   0,   0,   0,   0,   0),
+    'L': (0, 0, 0, 0, 0, 0, 0, 0,
+          78, 83, 86, 73, 102, 82, 85, 90,
+          7, 29, 21, 44, 40, 31, 44, 7,
+          -17, 16, -2, 15, 14, 0, 15, -13,
+          -26, 3, 10, 9, 6, 1, 0, -23,
+          -22, 9, 5, -11, -10, -2, 3, -19,
+          -31, 8, -7, -37, -36, -14, 3, -31,
+          0, 0, 0, 0, 0, 0, 0, 0),
+    'D': (0, 0, 0, 0, 0, 0, 0, 0,
+          78, 83, 86, 73, 102, 82, 85, 90,
+          7, 29, 21, 44, 40, 31, 44, 7,
+          -17, 16, -2, 15, 14, 0, 15, -13,
+          -26, 3, 10, 9, 6, 1, 0, -23,
+          -22, 9, 5, -11, -10, -2, 3, -19,
+          -31, 8, -7, -37, -36, -14, 3, -31,
+          0, 0, 0, 0, 0, 0, 0, 0),
     'N': ( -66, -53, -75, -75, -10, -55, -58, -70,
             -3,  -6, 100, -36,   4,  62,  -4, -14,
             10,  67,   1,  74,  73,  27,  62,  -2,
@@ -32,6 +48,14 @@ pst = {
            -18,  10,  13,  22,  18,  15,  11, -14,
            -23, -15,   2,   0,   2,   0, -23, -20,
            -74, -23, -26, -24, -19, -35, -22, -69),
+    'C': (-66, -53, -75, -75, -10, -55, -58, -70,
+          -3, -6, 100, -36, 4, 62, -4, -14,
+          10, 67, 1, 74, 73, 27, 62, -2,
+          24, 24, 45, 37, 33, 41, 25, 17,
+          -1, 5, 31, 21, 22, 35, 2, 0,
+          -18, 10, 13, 22, 18, 15, 11, -14,
+          -23, -15, 2, 0, 2, 0, -23, -20,
+          -74, -23, -26, -24, -19, -35, -22, -69),
     'B': ( -59, -78, -82, -76, -23,-107, -37, -50,
            -11,  20,  35, -42, -39,  31,   2, -22,
             -9,  39, -32,  41,  52, -10,  28, -14,
@@ -40,6 +64,14 @@ pst = {
             14,  25,  24,  15,   8,  25,  20,  15,
             19,  20,  11,   6,   7,   6,  20,  16,
             -7,   2, -15, -12, -14, -15, -10, -10),
+    'F': (-59, -78, -82, -76, -23, -107, -37, -50,
+          -11, 20, 35, -42, -39, 31, 2, -22,
+          -9, 39, -32, 41, 52, -10, 28, -14,
+          25, 17, 20, 34, 26, 25, 15, 10,
+          13, 10, 17, 23, 17, 16, 0, 7,
+          14, 25, 24, 15, 8, 25, 20, 15,
+          19, 20, 11, 6, 7, 6, 20, 16,
+          -7, 2, -15, -12, -14, -15, -10, -10),
     'R': (  35,  29,  33,   4,  37,  33,  56,  50,
             55,  29,  56,  67,  55,  62,  34,  60,
             19,  35,  28,  33,  45,  27,  25,  15,
@@ -85,14 +117,14 @@ A1, H1, A8, H8 = 91, 98, 21, 28
 initial = (
     '         \n'  #   0 -  9
     '         \n'  #  10 - 19
-    ' rnbqkbnr\n'  #  20 - 29
-    ' pppppppp\n'  #  30 - 39
+    ' rcbqkfnr\n'  #  20 - 29
+    ' dddpplll\n'  #  30 - 39
     ' ........\n'  #  40 - 49
     ' ........\n'  #  50 - 59
     ' ........\n'  #  60 - 69
     ' ........\n'  #  70 - 79
-    ' PPPPPPPP\n'  #  80 - 89
-    ' RNBQKBNR\n'  #  90 - 99
+    ' LLLPPDDD\n'  #  80 - 89
+    ' RNFQKBCR\n'  #  90 - 99
     '         \n'  # 100 -109
     '         \n'  # 110 -119
 )
@@ -101,11 +133,15 @@ initial = (
 N, E, S, W, NE, NW, SE, SW = -10, 1, 10, -1, -9, -11, 11, 9 #finish combination math variables
 directions = {
     'P': (N, NW, NE),
+    'L': (N, NW, NE),
+    'D': (N, NW, NE),
     'N': (N, E, NE, S, SW, SE, W, NW),
+    'C': (N, E, NE, S, SW, SE, W, NW),
     'B': (N, NW, NE),
+    'F': (N, NW, NE),
     'R': (N, E, NE, S, SW, SE, W, NW),
     'Q': (N, E, NE, S, SW, SE, W, NW),
-    'K': (N, E, NE, S, SW, SE, W, NW) #do combinations of N,S,E,W; only need to show up once in dict key
+    'K': (N, E, NE, S, SW, SE, W, NW)
 }
 
 # Mate value must be greater than 8*queen + 2*(rook+knight+bishop)
@@ -138,68 +174,55 @@ class Position(namedtuple('Position', 'board score')):
     ep - the en passant square
     kp - the king passant square
     """
-    def gen_royal_moves(self):
-        for i, p in enumerate(self.board):
-            if not p.isupper() or not p == "N" or not p == "K" or not p == "Q": continue
-            if p == "N":
-                for i in range(0, 4):
-                    for d in directions[p]:
-                        for j in count(i + d, d):
-                            num = 0
-                            q = self.board[j]
-                            # Stay inside the board, and off friendly pieces
-                            if q.isspace() or q.isupper():
-                                break
-                            # Rook capture
 
-                            # Move it
-                            yield i, j
-                            num += 1
-                            # Stop crawlers from sliding, and sliding after captures
-                            if p in 'PBR' or q.islower():
-                                break
-
-    def gen_peasant_moves(self):
+    def gen_moves(self, num_moves_made):
         # For each of our pieces, iterate through each possible 'ray' of moves,
         # as defined in the 'directions' map. The rays are broken e.g. by
         # captures or immediately in case of pieces such as knights.
 
+        temp_board = Position(self.board, 0)
         for i, p in enumerate(self.board):
             if not p.isupper(): continue
-            if p == "N":
-                for k in range(0, 4):
+            if p == "N" or p == "C":
+                if num_moves_made < 5:
                     for d in directions[p]:
                         for j in count(i + d, d):
                             num = 0
-                            q = self.board[j]
+                            q = temp_board.board[j]
                             # Stay inside the board, and off friendly pieces
                             if q.isspace() or q.isupper():
                                 break
                             # Rook capture
+                            yield i, j
+                            temp_board.move((i, j), 0)
+                            num_moves_made = num_moves_made + 1
+                            temp_board.gen_moves(num_moves_made)
 
                             # Move it
-                            yield i, j
                             num += 1
                             # Stop crawlers from sliding, and sliding after captures
-                            if p in 'PBR' or q.islower():
+                            if (p in 'PLDRNCBFRQK' or q.islower()) and (num_moves_made >= 5):
                                 break
 
             if p == "K" or p == "Q":
-                for k in range(0, 2):
+                if num_moves_made < 3:
                     for d in directions[p]:
                         for j in count(i + d, d):
                             num = 0
-                            q = self.board[j]
+                            q = temp_board.board[j]
                             # Stay inside the board, and off friendly pieces
                             if q.isspace() or q.isupper():
                                 break
                             # Rook capture
+                            temp_board.move((i, j), 0)
+                            num_moves_made = num_moves_made + 1
+                            temp_board.gen_moves(num_moves_made)
 
                             # Move it
                             yield i, j
                             num += 1
                             # Stop crawlers from sliding, and sliding after captures
-                            if p in 'PBR' or q.islower():
+                            if (p in 'PLDRNCBFRQK' or q.islower()) and (num_moves_made >= 3):
                                 break
 
             if not (p == "N" or p == "K" or p == "Q"):
@@ -217,7 +240,8 @@ class Position(namedtuple('Position', 'board score')):
                         yield i, j
                         num += 1
                         # Stop crawlers from sliding, and sliding after captures
-                        if p in 'PBR' or q.islower() or (num == 3 and p in 'KQ') or (num == 5 and p in 'N'):
+                        if p in 'PLDRNCBFRQK' or q.islower() or (num == 3 and p in 'KQ') or (num == 5 and (p in 'N' or
+                            p in 'C')):
                             break
                     '''
                     if p in 'KQ':   #checks to see if moving king or queen, pieces that can move more than once in a turn
@@ -294,7 +318,7 @@ class Position(namedtuple('Position', 'board score')):
         chance3 = 7
         three_highest_attackers = ""
         opponent_view = Position(board, score).rotate()
-        for i, j in opponent_view.gen_peasant_moves():
+        for i, j in opponent_view.gen_moves(0):
             match2 = re.match('([a-h])''([1-8])', i)
             if j == position:
                 if board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)] == "K":
@@ -640,7 +664,7 @@ class Searcher:
             if killer and (depth > 0 or pos.value(killer) >= QS_LIMIT):
                 yield killer, -self.bound(pos.move(killer, count), 1 - gamma, depth - 1, root=False)
             # Then all the other moves
-            for move in sorted(pos.gen_peasant_moves(), key=pos.value, reverse=True):
+            for move in sorted(pos.gen_moves(0), key=pos.value, reverse=True):
             #for val, move in sorted(((pos.value(move), move) for move in pos.gen_moves()), reverse=True):
                 # If depth == 0 we only try moves with high intrinsic score (captures and
                 # promotions). Otherwise we do all moves.
@@ -670,8 +694,8 @@ class Searcher:
         # but only if depth == 1, so that's probably fair enough.
         # (Btw, at depth 1 we can also mate without realizing.)
         if best < gamma and best < 0 < depth:
-            is_dead = lambda pos: any(pos.value(m) >= MATE_LOWER for m in pos.gen_peasant_moves())
-            if all(is_dead(pos.move(m, count)) for m in pos.gen_peasant_moves()):
+            is_dead = lambda pos: any(pos.value(m) >= MATE_LOWER for m in pos.gen_moves(0))
+            if all(is_dead(pos.move(m, count)) for m in pos.gen_moves(0)):
                 in_check = is_dead(pos.nullmove())
                 best = -MATE_UPPER if in_check else 0
 
@@ -733,8 +757,9 @@ def render(i):
 
 def print_pos(pos):
     print()
-    uni_pieces = {'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟',
-                  'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔', 'p': '♙', '.': '·'}
+    uni_pieces = {'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟', 'C': '♞', 'F': '♝', 'L': '♟',
+                  'D': '♟', 'r': '♖', 'n': '♘', 'c': '♘', 'b': '♗', 'f': '♗', 'q': '♕', 'k': '♔', 'p': '♙',
+                  'd': '♙', 'l': '♙', '.': '·'}
     for i, row in enumerate(pos.board.split()):
         print(' ', 8-i, ' '.join(uni_pieces.get(p, p) for p in row))
     print('    a b c d e f g h \n\n')
@@ -757,34 +782,40 @@ def main():
             print("You lost")
             break
         '''
+
+        king_is_dead = False
+        for i in range(0, 9):
+            for j in range(0,7):
+                if hist[-1].board[(j * 10) - i] == "K":
+                    king_is_dead = True
+
+        if king_is_dead:
+            print("You lost")
+            break
+
         # We query the user until she enters a (pseudo) legal move.
         move = None
 
         different_count = 0
 
         while is_continue and different_count <= 2:
-            while move not in hist[-1].gen_peasant_moves():
+            while move not in hist[-1].gen_moves(0):
                 match = re.match('([a-h][1-8])'*2, input('Your move: '))
                 match2 = re.match('([a-h])''([1-8])', match.group(1))
                 print((109-((ord(match2.group(2))-48)*10)))
                 print((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower())
-                if ((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'q' or
+                '''if ((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'q' or
                         (hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'k'
                         or (hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower()
-                        == 'n'):
-                    different_count += 1
-                    if match:
-                        move = parse(match.group(1)), parse(match.group(2))
-                    else:
-                        # Inform the user when invalid input (e.g. "help") is entered
-                        print("Please enter a move like g8f6")
+                        == 'n'):'''
+                different_count += 1
+
+                different_count = 3
+                if match:
+                   move = parse(match.group(1)), parse(match.group(2))
                 else:
-                    different_count = 3
-                    if match:
-                        move = parse(match.group(1)), parse(match.group(2))
-                    else:
-                        # Inform the user when invalid input (e.g. "help") is entered
-                        print("Please enter a move like g8f6")
+                    # Inform the user when invalid input (e.g. "help") is entered
+                    print("Please enter a move like g8f6")
         if is_continue:
             hist.append(hist[-1].move(move, count)) #possible need to back line up one tab
         else:
@@ -794,8 +825,18 @@ def main():
         # After our move we rotate the board and print it again.
         # This allows us to see the effect of our move.
         print_pos(hist[-1].rotate())
-
+        '''
         if hist[-1].score <= -MATE_LOWER:
+            print("You won")
+            break
+        '''
+        king_is_dead = False
+        for i in range(0, 9):
+            for j in range(0, 7):
+                if hist[-1].board[(j * 10) - i] == "K":
+                    king_is_dead = True
+
+        if king_is_dead:
             print("You won")
             break
 
@@ -805,8 +846,8 @@ def main():
             if time.time() - start > 1:
                 break
 
-        if score == MATE_UPPER:
-            print("Checkmate!")
+        '''if score == MATE_UPPER:
+            print("Checkmate!")'''
 
         count = 0
         # The black player moves from a rotated position, so we have to
