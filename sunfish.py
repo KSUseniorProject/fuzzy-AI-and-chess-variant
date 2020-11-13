@@ -79,7 +79,7 @@ pst = {
            -28, -35, -16, -21, -13, -29, -46, -30,
            -42, -28, -42, -25, -25, -35, -26, -46,
            -53, -38, -31, -26, -29, -43, -44, -53,
-           -30, -24, -18,   5,  -2, -18, -31, -32),
+-           -30, -24, -18,   5,  -2, -18, -31, -32),
     'Q': (   6,   1,  -8,-104,  69,  24,  88,  26,
             14,  32,  60, -10,  20,  76,  57,  24,
             -2,  43,  32,  60,  72,  63,  43,   2,
@@ -95,7 +95,7 @@ pst = {
            -55, -43, -52, -28, -51, -47,  -8, -50,
            -47, -42, -43, -79, -64, -32, -29, -32,
             -4,   3, -14, -50, -57, -18,  13,   4,
-            17,  30,  -3, -14,   6,  -1,  40,  18),
+            17,  30,  -3, -14,   6,  -1,  40,  18)
 }
 
 capture_table = [[4, 4, 4, 4, 5, 1], [4, 4, 4, 4, 5, 2], [6, 6, 4, 4, 5, 2],
@@ -132,7 +132,7 @@ initial = (
 # Lists of possible moves for each piece type.
 N, E, S, W, NE, NW, SE, SW = -10, 1, 10, -1, -9, -11, 11, 9 #finish combination math variables
 directions = {
-    'P': (N, NW, NE),
+    'P': (N, N + W, N + E),
     'L': (N, NW, NE),
     'D': (N, NW, NE),
     'N': (N, E, NE, S, SW, SE, W, NW),
@@ -175,36 +175,40 @@ class Position(namedtuple('Position', 'board score')):
     kp - the king passant square
     """
 
-    def gen_moves(self, num_moves_made):
+    @dispatch(int, str)
+    def gen_moves(self, num_moves_made, piece_moved):
         # For each of our pieces, iterate through each possible 'ray' of moves,
         # as defined in the 'directions' map. The rays are broken e.g. by
         # captures or immediately in case of pieces such as knights.
 
         temp_board = Position(self.board, 0)
         for i, p in enumerate(self.board):
-            if not p.isupper(): continue
-            if p == "N" or p == "C":
-                if num_moves_made < 5:
-                    for d in directions[p]:
-                        for j in count(i + d, d):
-                            num = 0
-                            q = temp_board.board[j]
-                            # Stay inside the board, and off friendly pieces
-                            if q.isspace() or q.isupper():
-                                break
-                            # Rook capture
-                            yield i, j
-                            temp_board.move((i, j), 0)
-                            num_moves_made = num_moves_made + 1
-                            temp_board.gen_moves(num_moves_made)
+            if not p.isupper():
+                continue
+            if piece_moved == "N" or piece_moved == "C":
+                for d in directions[piece_moved]:
+                    temp_num_moves_made = num_moves_made
+                    for j in count(i + d, d):
+                        num = 0
+                        q = temp_board.board[j]
+                        # Stay inside the board, and off friendly pieces
+                        if q.isspace() or q.isupper():
+                            break
+                        # Rook capture
+                        if q.islower and not q == ".":
+                            num_moves_made = 4
+                        yield i, j
+                        temp_board.move((i, j), 0)
+                        temp_num_moves_made = temp_num_moves_made + 1
+                        temp_board.gen_moves(temp_num_moves_made, piece_moved)
 
-                            # Move it
-                            num += 1
-                            # Stop crawlers from sliding, and sliding after captures
-                            if (p in 'PLDRNCBFRQK' or q.islower()) and (num_moves_made >= 5):
-                                break
+                        # Move it
+                        num += 1
+                        # Stop crawlers from sliding, and sliding after captures
+                        if (p in 'PLDRNCBFRQK' or q.islower()) or (temp_num_moves_made >= 5):
+                            break
 
-            if p == "K" or p == "Q":
+            if piece_moved == "K" or piece_moved == "Q":
                 if num_moves_made < 3:
                     for d in directions[p]:
                         for j in count(i + d, d):
@@ -213,19 +217,78 @@ class Position(namedtuple('Position', 'board score')):
                             # Stay inside the board, and off friendly pieces
                             if q.isspace() or q.isupper():
                                 break
+                            if q.islower and not q == ".":
+                                num_moves_made = 3
                             # Rook capture
+                            yield i, j
                             temp_board.move((i, j), 0)
+                            temp_board.rotate()
                             num_moves_made = num_moves_made + 1
-                            temp_board.gen_moves(num_moves_made)
+                            temp_board.gen_moves(num_moves_made, piece_moved)
 
                             # Move it
-                            yield i, j
                             num += 1
                             # Stop crawlers from sliding, and sliding after captures
                             if (p in 'PLDRNCBFRQK' or q.islower()) and (num_moves_made >= 3):
                                 break
 
-            if not (p == "N" or p == "K" or p == "Q"):
+    @dispatch(int)
+    def gen_moves(self, num_moves_made):
+        # For each of our pieces, iterate through each possible 'ray' of moves,
+        # as defined in the 'directions' map. The rays are broken e.g. by
+        # captures or immediately in case of pieces such as knights.
+
+        temp_board = Position(self.board, 0)
+        for i, p in enumerate(self.board):
+            if not p.isupper():
+                continue
+            if p == "N" or p == "C":
+                for d in directions[p]:
+                    num_moves_made = 0
+                    for j in count(i + d, d):
+                        num = 0
+                        q = temp_board.board[j]
+                        # Stay inside the board, and off friendly pieces
+                        if q.isspace() or q.isupper():
+                            break
+                        if q.islower and not q == ".":
+                                num_moves_made = 4
+                            # Rook capture
+                        temp_board.move((i, j), 0)
+                        num_moves_made = num_moves_made + 1
+                        for r, t in temp_board.gen_moves(num_moves_made, "N"):
+                            yield r, t
+                        yield i, j
+                            # Move it
+                        num += 1
+                        # Stop crawlers from sliding, and sliding after captures
+                        if (p in 'PLDRNCBFRQK' or q.islower()) and (num_moves_made >= 5):
+                             break
+
+            if p == "K" or p == "Q":
+                for d in directions[p]:
+                    num_moves_made = 0
+                    for j in count(i + d, d):
+                        num = 0
+                        q = temp_board.board[j]
+                        # Stay inside the board, and off friendly pieces
+                        if q.isspace() or q.isupper():
+                            break
+                        if q.islower and not q == ".":
+                            num_moves_made = 3
+                        # Rook capture
+                        yield i, j
+                        temp_board.move((i, j), 0)
+                        temp_board.rotate()
+                        num_moves_made = num_moves_made + 1
+                        temp_board.gen_moves(num_moves_made, "K")
+
+                        # Move it
+                        num += 1
+                        # Stop crawlers from sliding, and sliding after captures
+                        if (p in 'PLDRNCBFRQK' or q.islower()) and (num_moves_made >= 3):
+                            break
+            if p == "B" or p == "F" or p == "P" or "L" or p == "D" or p == "R":
                 for d in directions[p]:
                     for j in count(i+d, d):
                         num = 0
@@ -269,6 +332,14 @@ class Position(namedtuple('Position', 'board score')):
         board = self.board
         score = self.score
         return Position(board, score).rotate()
+
+    def user_move(self, u_move):
+        match = re.match('([a-h][1-8])' * 2, u_move)
+        move = parse(match.group(1)), parse(match.group(2))
+        if u_move == "skip":
+            self.append(self[-1].move())
+        else:
+            self.append(self[-1].move(move, 0))
 
     @dispatch(tuple, int)
     def move(self, move, count):
@@ -650,7 +721,7 @@ class Searcher:
             count = 0
             # First try not moving at all. We only do this if there is at least one major
             # piece left on the board, since otherwise zugzwangs are too dangerous.
-            if depth > 0 and not root and any(c in pos.board for c in 'RBNQ'):
+            if depth > 0 and not root and any(c in pos.board for c in 'RBNQFC'):
                 yield None, -self.bound(pos.nullmove(), 1-gamma, depth-3, root=False)
             # For QSearch we have a different kind of null-move, namely we can just stop
             # and not capture anythign else.
@@ -772,27 +843,59 @@ def main():
     while True:
         print_pos(hist[-1])
 
+        '''if hist[-1].score <= -MATE_LOWER:
+            print("You lost")
+            break
+        '''
+
+        king_is_alive = False
+        for i in range(0, 9):
+            for j in range(0, 9):
+                check = hist[-1].board[(109 - (i * 10)) - j]
+                if check == "K":
+                    king_is_alive = True
+                    break
+            if king_is_alive:
+                break
+
+        if not king_is_alive:
+            print("You lost")
+            break
+
+            # Fire up the engine to look for a move.
+        '''start = time.time()
+        for _depth, move, score in searcher.search(hist[-1], hist):
+            if time.time() - start > 1:
+                break
+
+            if score == MATE_UPPER:
+                print("Checkmate!")
+
+
+        def ai_move():
+            return render(119 - move[0]) + render(119 - move[1])
+
+            # The black player moves from a rotated position, so we have to
+            # 'back rotate' the move before printing it.
+        print(ai_move())
+        skip = False
+
+        def skip_ai():
+            skip = True
+
+        if skip:
+            hist.append(hist[-1].move())
+            hist[-1].board
+
+        else:
+            hist.append(hist[-1].move(move, count))
+            hist[-1].board'''
         is_continue = True
         play = input("Do you want to move this turn y/n ")
         if play == "y":
             is_continue = True
         if play == "n":
             is_continue = False
-        '''if hist[-1].score <= -MATE_LOWER:
-            print("You lost")
-            break
-        '''
-
-        king_is_dead = False
-        for i in range(0, 9):
-            for j in range(0,7):
-                if hist[-1].board[(j * 10) - i] == "K":
-                    king_is_dead = True
-
-        if king_is_dead:
-            print("You lost")
-            break
-
         # We query the user until she enters a (pseudo) legal move.
         move = None
 
@@ -802,8 +905,9 @@ def main():
             while move not in hist[-1].gen_moves(0):
                 match = re.match('([a-h][1-8])'*2, input('Your move: '))
                 match2 = re.match('([a-h])''([1-8])', match.group(1))
+                print(match.group(1))
                 print((109-((ord(match2.group(2))-48)*10)))
-                print((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower())
+                print((hist[-1].board[parse(match.group(1))]))
                 '''if ((hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'q' or
                         (hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower() == 'k'
                         or (hist[-1].board[(109-((ord(match2.group(2))-48)*10))-(ord(match2.group(1))-96)]).lower()
@@ -816,12 +920,11 @@ def main():
                 else:
                     # Inform the user when invalid input (e.g. "help") is entered
                     print("Please enter a move like g8f6")
+
         if is_continue:
             hist.append(hist[-1].move(move, count)) #possible need to back line up one tab
         else:
             hist.append(hist[-1].move())
-
-
         # After our move we rotate the board and print it again.
         # This allows us to see the effect of our move.
         print_pos(hist[-1].rotate())
@@ -830,13 +933,19 @@ def main():
             print("You won")
             break
         '''
-        king_is_dead = False
-        for i in range(0, 9):
-            for j in range(0, 7):
-                if hist[-1].board[(j * 10) - i] == "K":
-                    king_is_dead = True
+        print_pos(hist[-1].rotate())
 
-        if king_is_dead:
+        king_is_alive = False
+        for i in range(0, 9):
+            for j in range(0, 9):
+                check = hist[-1].board[(109 - (i * 10)) - j]
+                if check == "K":
+                    king_is_alive = True
+                    break
+            if king_is_alive:
+                break
+
+        if not king_is_alive:
             print("You won")
             break
 
@@ -849,12 +958,27 @@ def main():
         '''if score == MATE_UPPER:
             print("Checkmate!")'''
 
-        count = 0
+
+        def ai_move():
+            return render(119 - move[0]) + render(119 - move[1])
+
         # The black player moves from a rotated position, so we have to
         # 'back rotate' the move before printing it.
-        print("My move:", render(119-move[0]) + render(119-move[1]))
-        hist.append(hist[-1].move(move, count))
-        hist[-1].board
+        print(ai_move())
+        skip = False
+
+        def skip_ai():
+            skip = True
+
+        if skip:
+            hist.append(hist[-1].move())
+            hist[-1].board
+
+        else:
+            hist.append(hist[-1].move(move, count))
+            hist[-1].board
+        count = count + 1
+        print("Round: " + str(count))
 
 
 if __name__ == '__main__':
