@@ -1,0 +1,7 @@
+Paying Chess with Fuzzy Logic AI game instructions :
+
+Left click on a white character to select the piece. If the piece is of the correct corps, attacks will be displayed.
+
+Right click on the board to move the selected piece, it will only apply legal moves.
+
+After making 3 moves, the AI will begin running. DO NOT CLICK ON THE BOARD or it may change the "selected piece" location and can cause failure.
